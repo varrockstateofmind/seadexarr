@@ -1,7 +1,9 @@
 import copy
+import re
 import json
 import os
 import shutil
+import time
 from datetime import datetime
 from hashlib import md5
 from itertools import compress
@@ -24,6 +26,9 @@ from .torrent import (
     get_nyaa_url,
     get_rutracker_url,
 )
+
+# Season/episode tag in a file name, e.g. S02E01
+SXXEYY_RE = re.compile(r"(?i)S\d{1,2}E\d{1,4}")
 
 
 def save_json(
@@ -228,6 +233,9 @@ class SeaDexArr:
         self.torrent_category = self.config.get(f"{arr}_torrent_category", None)
         self.torrent_tags = self.config.get("torrent_tags", None)
         self.max_torrents_to_add = self.config.get("max_torrents_to_add", None)
+
+        # Rename files in qBittorrent so Sonarr can import split-season releases
+        self.rename_split_seasons = self.config.get("rename_split_seasons", True)
         self.torrents_added = 0
 
         # Discord
@@ -1401,6 +1409,13 @@ class SeaDexArr:
                         )
                     )
 
+                    renames = url_item.get("renames", {})
+                    if torrent_client == "qbit" and renames and item_hash:
+                        self.rename_qbit_files(
+                            torrent_hash=item_hash,
+                            renames=renames,
+                        )
+
                     # Increment the number of torrents added, and if we've hit the limit then
                     # jump out
                     self.torrents_added += 1
@@ -1416,6 +1431,15 @@ class SeaDexArr:
                             total_length=self.log_line_length,
                         )
                     )
+
+                    # Still apply renames, in case it was added before this
+                    # feature (already-renamed files are skipped)
+                    renames = url_item.get("renames", {})
+                    if torrent_client == "qbit" and renames and item_hash:
+                        self.rename_qbit_files(
+                            torrent_hash=item_hash,
+                            renames=renames,
+                        )
 
                 else:
                     raise ValueError(f"Cannot handle torrent client {torrent_client}")
@@ -1467,6 +1491,91 @@ class SeaDexArr:
             raise Exception("Failed to add torrent")
 
         return "torrent_added"
+
+    def rename_qbit_files(
+        self,
+        torrent_hash,
+        renames,
+        timeout=120,
+    ):
+        """Rename files inside a qBittorrent torrent to Sonarr's numbering
+
+        Replaces the SxxEyy tag in each file name, so e.g. "Show S02E01.mkv"
+        becomes "Show S01E13.mkv". qBittorrent keeps seeding the renamed files.
+
+        Args:
+            torrent_hash (str): Torrent hash
+            renames (dict): {torrent file path: {"season", "episode", ...}}
+            timeout (int): Seconds to wait for torrent metadata
+        """
+
+        torrent_hash = torrent_hash.lower()
+        by_name = {os.path.basename(k): v for k, v in renames.items()}
+
+        # Wait for qBittorrent to fetch the torrent's file list
+        files = []
+        waited = 0
+        while waited < timeout:
+            try:
+                files = self.qbit.torrents_files(torrent_hash=torrent_hash)
+            except Exception:
+                files = []
+            if len(files) > 0:
+                break
+            time.sleep(2)
+            waited += 2
+
+        if len(files) == 0:
+            self.logger.warning(
+                left_aligned_string(
+                    "   Couldn't get file list from qBittorrent, files not renamed",
+                    total_length=self.log_line_length,
+                )
+            )
+            return 0
+
+        n_renamed = 0
+        for qf in files:
+            old_path = qf.name
+            base = os.path.basename(old_path)
+            target = by_name.get(base)
+            if target is None:
+                continue
+
+            tag = f"S{target['season']:02d}E{target['episode']:02d}"
+            new_base, n = SXXEYY_RE.subn(tag, base, count=1)
+            if n == 0:
+                self.logger.warning(
+                    left_aligned_string(
+                        f"   No SxxEyy in {base}, not renamed",
+                        total_length=self.log_line_length,
+                    )
+                )
+                continue
+
+            new_path = os.path.join(os.path.dirname(old_path), new_base)
+            try:
+                self.qbit.torrents_rename_file(
+                    torrent_hash=torrent_hash,
+                    old_path=old_path,
+                    new_path=new_path,
+                )
+                n_renamed += 1
+                self.logger.info(
+                    left_aligned_string(
+                        f"   Renamed {base} -> {new_base}",
+                        total_length=self.log_line_length,
+                    )
+                )
+            except Exception as e:
+                self.logger.warning(
+                    left_aligned_string(
+                        f"   Failed to rename {base}: {e}",
+                        total_length=self.log_line_length,
+                    )
+                )
+
+        return n_renamed
 
     def update_cache(self, arr, al_id, cache_details=None):
         """Update cache with useful info

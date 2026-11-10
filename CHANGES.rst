@@ -4,6 +4,7 @@
 - Add "ignore_empty" option, which allows you to ignore series/movies that don't already have something downloaded
 - Add option to disable filesize check
 - Add option to add torrents in paused state
+- Add "rename_split_seasons" option, which renames files in qBittorrent so Sonarr can import releases whose season numbering differs from TVDB
 
 1.1.0 (2026-10-16)
 ==================

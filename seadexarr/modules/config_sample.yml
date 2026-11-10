@@ -43,6 +43,10 @@ check_filesize: true
 # Do you want to filter purely by torrent hash?
 use_torrent_hash_to_filter: false
 
+# Rename files inside qBittorrent so Sonarr can import split-season releases
+# (e.g. a pack numbering the second half "S02E01" when TVDB has one long season)
+rename_split_seasons: true
+
 # Maximum number of torrents to add in one run
 max_torrents_to_add:
 

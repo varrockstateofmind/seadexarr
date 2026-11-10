@@ -475,7 +475,10 @@ class SeaDexSonarr(SeaDexArr):
                     )
 
                     # Parse out filenames and check for overlaps
-                    seadex_dict = self.parse_episodes_from_seadex(seadex_dict=seadex_dict)
+                    seadex_dict = self.parse_episodes_from_seadex(
+                        seadex_dict=seadex_dict,
+                        ep_list=ep_list,
+                    )
                     overlapping_results = get_overlapping_results(seadex_dict=seadex_dict)
 
                     # If we're in interactive mode and there are multiple equivalent options here, then select
@@ -780,6 +783,7 @@ class SeaDexSonarr(SeaDexArr):
     def parse_episodes_from_seadex(
         self,
         seadex_dict,
+        ep_list=None,
     ):
         """For files in a SeaDex release, parse this through Sonarr to get season/episode numbers
 
@@ -788,6 +792,9 @@ class SeaDexSonarr(SeaDexArr):
 
         Args:
             seadex_dict (dict): Dictionary of seadex releases
+            ep_list (list): Sonarr episodes covered by this AniList entry. Used
+                to number files Sonarr can't place (e.g. "S02E01" for a show
+                that is one long season on TVDB). Defaults to None
         """
 
         for release_group, release_group_item in seadex_dict.items():
@@ -800,6 +807,10 @@ class SeaDexSonarr(SeaDexArr):
                 # Set up a list to parse episodes from files
                 url_item.update({"episodes": []})
                 sizes = url_item.get("size", [])
+
+                # Files Sonarr recognised the numbering of, but couldn't match
+                # to an episode in the series
+                unmatched_files = []
 
                 for sd_file_idx, seadex_file in enumerate(url_item.get("files", [])):
 
@@ -827,6 +838,18 @@ class SeaDexSonarr(SeaDexArr):
                                 f"Sonarr could not parse episode for {f}"
                             )
                         )
+                        parsed = j.get("parsedEpisodeInfo") or {}
+                        p_season = parsed.get("seasonNumber", None)
+                        p_eps = parsed.get("episodeNumbers") or []
+                        if p_season is not None and len(p_eps) == 1:
+                            unmatched_files.append(
+                                {
+                                    "file": seadex_file,
+                                    "season": p_season,
+                                    "episode": p_eps[0],
+                                    "size": sizes[sd_file_idx],
+                                }
+                            )
                         continue
 
                     # Add the season and episode numbers in
@@ -860,4 +883,86 @@ class SeaDexSonarr(SeaDexArr):
                             }
                         )
 
+                # Try to place files Sonarr couldn't match, using the episodes
+                # this AniList entry covers in Sonarr
+                if self.rename_split_seasons and ep_list and unmatched_files:
+                    renames = self.map_unmatched_files(
+                        unmatched_files=unmatched_files,
+                        matched_episodes=url_item["episodes"],
+                        ep_list=ep_list,
+                    )
+                    for r in renames.values():
+                        ep = {
+                            "season": r["season"],
+                            "episode": r["episode"],
+                            "size": r["size"],
+                        }
+                        url_item["episodes"].append(ep)
+                        release_group_item["all_episodes"].append(ep)
+                    if renames:
+                        url_item.setdefault("renames", {}).update(renames)
+
         return seadex_dict
+
+    def map_unmatched_files(
+        self,
+        unmatched_files,
+        matched_episodes,
+        ep_list,
+    ):
+        """Map files Sonarr couldn't match onto this AniList entry's episodes
+
+        Split-cour shows are often one long season on TVDB (and so in Sonarr),
+        but releases number the second half as "S02E01" onwards. Sonarr can't
+        match those. If the number of such files (all from one season) equals
+        the number of this entry's episodes not already covered by the
+        torrent, pair them up in order.
+
+        Args:
+            unmatched_files (list): Files with parsed season/episode numbers
+                that Sonarr couldn't match
+            matched_episodes (list): Episodes already matched in this torrent
+            ep_list (list): Sonarr episodes covered by this AniList entry
+
+        Returns:
+            dict: {torrent file path: {"season", "episode", "size"}}
+        """
+
+        covered = {(e["season"], e["episode"]) for e in matched_episodes}
+        wanted = [
+            e
+            for e in ep_list
+            if (e.get("seasonNumber"), e.get("episodeNumber")) not in covered
+            and e.get("seasonNumber", 0) != 0
+        ]
+
+        seasons = {f["season"] for f in unmatched_files}
+        if len(wanted) == 0 or len(seasons) != 1:
+            return {}
+
+        files = sorted(unmatched_files, key=lambda x: x["episode"])
+        if len(files) != len(wanted):
+            self.logger.debug(
+                left_aligned_string(
+                    f"Not renaming: {len(files)} unmatched files "
+                    f"vs {len(wanted)} episodes to fill"
+                )
+            )
+            return {}
+
+        renames = {}
+        for f, ep in zip(files, wanted):
+            target = {
+                "season": ep.get("seasonNumber"),
+                "episode": ep.get("episodeNumber"),
+                "size": f["size"],
+            }
+            renames[f["file"]] = target
+            self.logger.info(
+                left_aligned_string(
+                    f"   Will rename {os.path.basename(f['file'])} -> "
+                    f"S{target['season']:02d}E{target['episode']:02d}"
+                )
+            )
+
+        return renames
