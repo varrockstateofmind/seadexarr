@@ -938,11 +938,17 @@ class SeaDexSonarr(SeaDexArr):
 
         seasons = {f["season"] for f in unmatched_files}
         if len(wanted) == 0 or len(seasons) != 1:
+            self.logger.info(
+                left_aligned_string(
+                    f"   Not renaming {len(unmatched_files)} unmatched file(s): "
+                    f"{len(wanted)} episode(s) to fill, seasons {sorted(seasons)}"
+                )
+            )
             return {}
 
         files = sorted(unmatched_files, key=lambda x: x["episode"])
         if len(files) != len(wanted):
-            self.logger.debug(
+            self.logger.info(
                 left_aligned_string(
                     f"Not renaming: {len(files)} unmatched files "
                     f"vs {len(wanted)} episodes to fill"
