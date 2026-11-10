@@ -1435,6 +1435,13 @@ class SeaDexArr:
                     )
 
                     renames = url_item.get("renames", {})
+                    if torrent_client == "qbit" and renames and not item_hash:
+                        self.logger.warning(
+                            left_aligned_string(
+                                "   SeaDex has no torrent hash, files not renamed",
+                                total_length=self.log_line_length,
+                            )
+                        )
                     if torrent_client == "qbit" and renames and item_hash:
                         self.rename_qbit_files(
                             torrent_hash=item_hash,
@@ -1460,6 +1467,13 @@ class SeaDexArr:
                     # Still apply renames, in case it was added before this
                     # feature (already-renamed files are skipped)
                     renames = url_item.get("renames", {})
+                    if torrent_client == "qbit" and renames and not item_hash:
+                        self.logger.warning(
+                            left_aligned_string(
+                                "   SeaDex has no torrent hash, files not renamed",
+                                total_length=self.log_line_length,
+                            )
+                        )
                     if torrent_client == "qbit" and renames and item_hash:
                         self.rename_qbit_files(
                             torrent_hash=item_hash,

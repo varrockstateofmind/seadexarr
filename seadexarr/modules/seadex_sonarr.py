@@ -885,6 +885,13 @@ class SeaDexSonarr(SeaDexArr):
 
                 # Try to place files Sonarr couldn't match, using the episodes
                 # this AniList entry covers in Sonarr
+                if self.rename_split_seasons and unmatched_files and not ep_list:
+                    self.logger.info(
+                        left_aligned_string(
+                            f"   Not renaming {len(unmatched_files)} unmatched file(s): "
+                            f"no Sonarr episodes mapped to this entry"
+                        )
+                    )
                 if self.rename_split_seasons and ep_list and unmatched_files:
                     renames = self.map_unmatched_files(
                         unmatched_files=unmatched_files,
