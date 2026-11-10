@@ -245,6 +245,7 @@ class SeaDexArr:
         self.public_only = self.config.get("public_only", True)
         self.prefer_dual_audio = self.config.get("prefer_dual_audio", True)
         self.want_best = self.config.get("want_best", True)
+        self.prefer_alt = self.config.get("prefer_alt", False)
 
         ignore_tags = self.config.get("ignore_tags", None)
         if ignore_tags is None:
@@ -722,6 +723,13 @@ class SeaDexArr:
             candidates = best_torrents
         else:
             candidates = final_torrent_list
+
+        # Or, if the user prefers the alternative (non-best) picks, keep only
+        # those, so long as at least one exists
+        if self.prefer_alt:
+            alts = [t for t in final_torrent_list if not t.is_best]
+            if len(alts) > 0:
+                candidates = alts
 
         # Now, if we prefer dual audio then remove any that aren't
         # tagged, so long as at least one is tagged
@@ -1274,7 +1282,11 @@ class SeaDexArr:
                     # If we have matched the release groups but not the file sizes, then flag that
                     # here and mark for download
                     size_matches = list(compress(size_matches, rg_matches))
-                    if not any(size_matches) and len(size_matches) > 0:
+                    if (
+                        self.check_filesize
+                        and not any(size_matches)
+                        and len(size_matches) > 0
+                    ):
                         self.logger.info(
                             left_aligned_string(
                                 f"File sizes are all different for release group {seadex_rg}. "
