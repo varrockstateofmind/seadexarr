@@ -57,6 +57,10 @@ class SeaDexRadarr(SeaDexArr):
 
         # Get all the anime movies
         all_radarr_movies = self.get_all_radarr_movies()
+
+        # Only the most recently added one (e.g. the last Seerr request)
+        if getattr(self, "only_latest", False) and all_radarr_movies:
+            all_radarr_movies = [max(all_radarr_movies, key=lambda x: str(getattr(x, "added", "") or ""))]
         n_radarr = len(all_radarr_movies)
 
         self.log_arr_start(

@@ -246,6 +246,10 @@ class SeaDexSonarr(SeaDexArr):
 
         # Get all the anime series
         all_sonarr_series = self.get_all_sonarr_series()
+
+        # Only the most recently added one (e.g. the last Seerr request)
+        if getattr(self, "only_latest", False) and all_sonarr_series:
+            all_sonarr_series = [max(all_sonarr_series, key=lambda x: str(getattr(x, "added", "") or ""))]
         n_sonarr = len(all_sonarr_series)
 
         self.log_arr_start(

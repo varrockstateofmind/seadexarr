@@ -99,12 +99,15 @@ def run_scheduled():
 def run_single(
     radarr: bool = False,
     sonarr: bool = False,
+    latest: bool = False,
 ):
     """Do a single SeaDexArr run
 
     Args:
         sonarr: Do a Sonarr run? Defaults to False
         radarr: Do a Radarr run? Defaults to False
+        latest: Only check the most recently added series/movie
+            (e.g. the last Seerr request). Defaults to False
     """
 
     # Set up config file location
@@ -119,6 +122,7 @@ def run_single(
                 cache=cache,
                 logger=None,
             )
+            sdr.only_latest = latest
             sdr.run()
         except Exception:
             tb = traceback.format_exc()
@@ -132,6 +136,7 @@ def run_single(
                 cache=cache,
                 logger=None,
             )
+            sds.only_latest = latest
             sds.run()
         except Exception:
             tb = traceback.format_exc()
