@@ -701,6 +701,11 @@ class SeaDexArr:
             if len(set(self.ignore_tags).intersection(set(t.tags))) == 0
         ]
 
+        # With prefer_alt, an existing copy of ANY SeaDex pick (e.g. the
+        # Best, or a dual-audio one) still counts as having it, so remember
+        # all the groups before narrowing down
+        self.seadex_all_groups = set(t.release_group for t in final_torrent_list)
+
         # Filter down by allowed trackers
         final_torrent_list = [
             t for t in final_torrent_list if t.tracker.lower() in self.trackers
@@ -1077,9 +1082,12 @@ class SeaDexArr:
         # And also just check if any release group matches
         # any Arr release tag
         overlapping_results = False
+        accepted_groups = list(seadex_dict.keys())
+        if self.prefer_alt:
+            accepted_groups += list(getattr(self, "seadex_all_groups", []))
         intersect = list(
             filter(
-                lambda x: x in list(seadex_dict.keys()),
+                lambda x: x in accepted_groups,
                 arr_release_groups,
             )
         )
@@ -1223,6 +1231,11 @@ class SeaDexArr:
                                     sonarr_rg != seadex_rg
                                     and sonarr_rg
                                     not in all_seadex_rgs_per_episode["all"]
+                                    and not (
+                                        self.prefer_alt
+                                        and sonarr_rg
+                                        in getattr(self, "seadex_all_groups", set())
+                                    )
                                 ):
 
                                     # This check here is to make sure we don't duplicate
