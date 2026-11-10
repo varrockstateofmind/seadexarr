@@ -249,7 +249,7 @@ class SeaDexSonarr(SeaDexArr):
 
         # Only the most recently added one (e.g. the last Seerr request)
         if getattr(self, "only_latest", False) and all_sonarr_series:
-            all_sonarr_series = [max(all_sonarr_series, key=lambda x: str(getattr(x, "added", "") or ""))]
+            all_sonarr_series = [max(all_sonarr_series, key=lambda x: getattr(x, "id", 0) or 0)]
         n_sonarr = len(all_sonarr_series)
 
         self.log_arr_start(
