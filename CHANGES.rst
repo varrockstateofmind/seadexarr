@@ -5,6 +5,8 @@
 - Add option to disable filesize check
 - Add option to add torrents in paused state
 - Add "rename_split_seasons" option, which renames files in qBittorrent so Sonarr can import releases whose season numbering differs from TVDB
+- Add "prefer_alt" option, which only uses the Alt (non-best) SeaDex picks when there are any
+- "check_filesize: false" now also skips the per-episode size check for Sonarr
 
 1.1.0 (2026-10-16)
 ==================
