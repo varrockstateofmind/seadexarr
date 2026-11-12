@@ -1813,7 +1813,7 @@ class SeaDexArr:
     def log_no_anilist_id(self):
         """Produce a log message for the case where no AniList ID is found"""
 
-        self.logger.debug(
+        self.logger.info(
             centred_string(
                 f"-> No AL ID found. Continuing",
                 total_length=self.log_line_length,
@@ -1838,7 +1838,7 @@ class SeaDexArr:
             al_id (int): Al ID
         """
 
-        self.logger.debug(
+        self.logger.info(
             centred_string(
                 f"No SeaDex entry found for AniList ID {al_id}. Continuing",
                 total_length=self.log_line_length,
